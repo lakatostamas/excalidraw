@@ -518,7 +518,6 @@ export const TTDDialogBase = withInternalFallback(
                   }
                   className="ttd-dialog-chat-panel"
                 >
-                  {undoStack.length}
                   <ChatInterface
                     messages={chatHistory.messages}
                     currentPrompt={chatHistory.currentPrompt}
