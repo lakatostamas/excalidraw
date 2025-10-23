@@ -141,7 +141,7 @@ export const TTDDialogBase = withInternalFallback(
     const addMessage = (message: Omit<ChatMessageType, "id" | "timestamp">) => {
       const newMessage: ChatMessageType = {
         ...message,
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substring(2, 9),
         timestamp: new Date(),
       };
 

@@ -34,9 +34,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   }, [currentPrompt]);
 
   const handleSpeechTranscript = (transcript: string) => {
-    const newValue = inputValue + (inputValue ? " " : "") + transcript;
-    setInputValue(newValue);
-    onPromptChange(newValue);
+    setInputValue(transcript);
+    onPromptChange(transcript);
   };
 
   const handleSpeechError = (error: string) => {
@@ -63,7 +62,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       handleSubmit();
     }
 
-    // Undo/Redo shortcuts
     if (event.ctrlKey || event.metaKey) {
       if (event.key === "z" && !event.shiftKey && onUndo && canUndo) {
         event.preventDefault();

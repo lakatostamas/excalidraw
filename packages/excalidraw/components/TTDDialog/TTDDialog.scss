@@ -49,12 +49,13 @@ $verticalBreakpoint: 861px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    border: none;
     padding: 0;
-    border-radius: var(--border-radius-sm);
-    background: transparent;
     color: var(--color-on-surface-variant);
+    background: transparent;
     cursor: help;
+
+    border: none;
+    border-radius: var(--border-radius-sm);
 
     &:hover {
       background: var(--color-surface-low);
@@ -102,7 +103,6 @@ $verticalBreakpoint: 861px;
     &[hidden] {
       display: none;
     }
-    position: relative;
   }
 
   .ttd-dialog-layout {
