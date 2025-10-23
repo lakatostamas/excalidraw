@@ -3,7 +3,6 @@
 $verticalBreakpoint: 861px;
 
 .excalidraw {
-  // Chat Interface Styles
   .chat-interface {
     display: flex;
     flex-direction: column;
@@ -14,7 +13,8 @@ $verticalBreakpoint: 861px;
     overflow: hidden;
 
     @media screen and (max-width: $verticalBreakpoint) {
-      max-height: 400px;
+      max-height: 250px;
+      min-height: 200px;
     }
 
     &__messages {
@@ -28,11 +28,10 @@ $verticalBreakpoint: 861px;
       max-height: 400px;
 
       @media screen and (max-width: $verticalBreakpoint) {
-        max-height: 300px;
+        max-height: 150px;
         padding: 0.75rem;
       }
 
-      // Custom scrollbar styling
       &::-webkit-scrollbar {
         width: 6px;
       }
