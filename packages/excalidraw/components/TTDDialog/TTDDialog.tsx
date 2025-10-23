@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import { isFiniteNumber } from "@excalidraw/math";
-import { EDITOR_LS_KEYS } from "@excalidraw/common";
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
@@ -11,21 +10,17 @@ import { atom, useAtom } from "../../editor-jotai";
 import { t } from "../../i18n";
 import { useApp, useExcalidrawSetAppState } from "../App";
 import { Dialog } from "../Dialog";
-import { InlineIcon } from "../InlineIcon";
 import { withInternalFallback } from "../hoc/withInternalFallback";
 import { ArrowRightIcon, HelpIconThin } from "../icons";
 import { Tooltip } from "../Tooltip";
-import { EditorLocalStorage } from "../../data/EditorLocalStorage";
 
 import MermaidToExcalidraw from "./MermaidToExcalidraw";
 import TTDDialogTabs from "./TTDDialogTabs";
 import { TTDDialogTabTriggers } from "./TTDDialogTabTriggers";
 import { TTDDialogTabTrigger } from "./TTDDialogTabTrigger";
 import { TTDDialogTab } from "./TTDDialogTab";
-import { TTDDialogInput } from "./TTDDialogInput";
 import { TTDDialogOutput } from "./TTDDialogOutput";
 import { TTDDialogPanel } from "./TTDDialogPanel";
-import { TTDDialogPanels } from "./TTDDialogPanels";
 import { ChatInterface } from "../Chat";
 
 import {
@@ -33,13 +28,15 @@ import {
   insertToEditor,
   saveMermaidDataToStorage,
 } from "./common";
-import { TTDDialogSubmitShortcut } from "./TTDDialogSubmitShortcut";
 
 import "./TTDDialog.scss";
 
-import type { ChangeEventHandler } from "react";
 import type { MermaidToExcalidrawLibProps } from "./common";
-import type { ChatMessageType, ChatHistory, ChatHistorySnapshot } from "../Chat";
+import type {
+  ChatMessageType,
+  ChatHistory,
+  ChatHistorySnapshot,
+} from "../Chat";
 
 import type { BinaryFiles } from "../../types";
 
@@ -121,16 +118,6 @@ export const TTDDialogBase = withInternalFallback(
 
     const prompt = text.trim();
 
-    const handleTextChange: ChangeEventHandler<HTMLTextAreaElement> = (
-      event,
-    ) => {
-      setText(event.target.value);
-      setTtdGeneration((s) => ({
-        generatedResponse: s?.generatedResponse ?? null,
-        prompt: event.target.value,
-      }));
-    };
-
     const handlePromptChange = (newPrompt: string) => {
       setText(newPrompt);
       setChatHistory((prev) => ({
@@ -148,7 +135,7 @@ export const TTDDialogBase = withInternalFallback(
       };
 
       setUndoStack((prev) => [...prev, snapshot]);
-      setRedoStack([]); // Clear redo stack when new action is performed
+      setRedoStack([]);
     };
 
     const addMessage = (message: Omit<ChatMessageType, "id" | "timestamp">) => {
@@ -176,7 +163,6 @@ export const TTDDialogBase = withInternalFallback(
     const handleUndo = async () => {
       if (undoStack.length === 0) return;
 
-      // Save current state to redo stack
       const currentSnapshot: ChatHistorySnapshot = {
         messages: [...chatHistory.messages],
         currentPrompt: chatHistory.currentPrompt,
@@ -185,7 +171,6 @@ export const TTDDialogBase = withInternalFallback(
       };
       setRedoStack((prev) => [...prev, currentSnapshot]);
 
-      // Restore from undo stack
       const snapshotToRestore = undoStack[undoStack.length - 1];
       setChatHistory({
         messages: snapshotToRestore.messages,
@@ -193,14 +178,12 @@ export const TTDDialogBase = withInternalFallback(
       });
       setText(snapshotToRestore.currentPrompt);
 
-      // Restore the generated response and regenerate diagram
       if (snapshotToRestore.generatedResponse) {
         setTtdGeneration({
           generatedResponse: snapshotToRestore.generatedResponse,
           prompt: snapshotToRestore.currentPrompt,
         });
 
-        // Regenerate the diagram from the restored response
         try {
           await convertMermaidToExcalidraw({
             canvasRef: someRandomDivRef,
@@ -214,19 +197,16 @@ export const TTDDialogBase = withInternalFallback(
           setError(error);
         }
       } else {
-        // Clear the diagram if no generated response
         setTtdGeneration(null);
         setError(null);
       }
 
-      // Remove from undo stack
       setUndoStack((prev) => prev.slice(0, -1));
     };
 
     const handleRedo = async () => {
       if (redoStack.length === 0) return;
 
-      // Save current state to undo stack
       const currentSnapshot: ChatHistorySnapshot = {
         messages: [...chatHistory.messages],
         currentPrompt: chatHistory.currentPrompt,
@@ -235,7 +215,6 @@ export const TTDDialogBase = withInternalFallback(
       };
       setUndoStack((prev) => [...prev, currentSnapshot]);
 
-      // Restore from redo stack
       const snapshotToRestore = redoStack[redoStack.length - 1];
       setChatHistory({
         messages: snapshotToRestore.messages,
@@ -243,14 +222,12 @@ export const TTDDialogBase = withInternalFallback(
       });
       setText(snapshotToRestore.currentPrompt);
 
-      // Restore the generated response and regenerate diagram
       if (snapshotToRestore.generatedResponse) {
         setTtdGeneration({
           generatedResponse: snapshotToRestore.generatedResponse,
           prompt: snapshotToRestore.currentPrompt,
         });
 
-        // Regenerate the diagram from the restored response
         try {
           await convertMermaidToExcalidraw({
             canvasRef: someRandomDivRef,
@@ -264,12 +241,10 @@ export const TTDDialogBase = withInternalFallback(
           setError(error);
         }
       } else {
-        // Clear the diagram if no generated response
         setTtdGeneration(null);
         setError(null);
       }
 
-      // Remove from redo stack
       setRedoStack((prev) => prev.slice(0, -1));
     };
 
@@ -304,20 +279,17 @@ export const TTDDialogBase = withInternalFallback(
         return;
       }
 
-      // Add user message to chat
       addMessage({
         type: "user",
         content: prompt,
       });
 
-      // Add loading message for AI response
       addMessage({
         type: "assistant",
         content: "",
         isGenerating: true,
       });
 
-      // Show preview when we have a generated response (with a small delay for smooth animation)
       setTimeout(() => {
         setShowPreview(true);
       }, 200);
@@ -358,7 +330,6 @@ export const TTDDialogBase = withInternalFallback(
           return;
         }
 
-        // Update the AI message with the response
         updateLastMessage({
           isGenerating: false,
           content: generatedResponse,
@@ -374,7 +345,6 @@ export const TTDDialogBase = withInternalFallback(
           });
           trackEvent("ai", "mermaid parse success", "ttd");
 
-          // Save snapshot after successful AI response and diagram generation
           saveSnapshot();
         } catch (error: any) {
           console.info(
@@ -440,10 +410,8 @@ export const TTDDialogBase = withInternalFallback(
 
     const [error, setError] = useState<Error | null>(null);
 
-    // Restore diagram data when switching back to text-to-diagram tab
     useEffect(() => {
       if (tab === "text-to-diagram" && ttdGeneration?.generatedResponse) {
-        // Use a small delay to ensure the DOM element is rendered
         const timeoutId = setTimeout(() => {
           if (someRandomDivRef.current && ttdGeneration.generatedResponse) {
             convertMermaidToExcalidraw({
