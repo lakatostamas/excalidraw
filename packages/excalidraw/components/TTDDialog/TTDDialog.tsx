@@ -22,6 +22,7 @@ import { TTDDialogTab } from "./TTDDialogTab";
 import { TTDDialogOutput } from "./TTDDialogOutput";
 import { TTDDialogPanel } from "./TTDDialogPanel";
 import { ChatInterface } from "../Chat";
+import { InlineIcon } from "../InlineIcon";
 
 import {
   convertMermaidToExcalidraw,
@@ -412,6 +413,15 @@ export const TTDDialogBase = withInternalFallback(
 
     const [error, setError] = useState<Error | null>(null);
 
+    const onViewAsMermaid = () => {
+      if (typeof ttdGeneration?.generatedResponse === "string") {
+        saveMermaidDataToStorage(ttdGeneration.generatedResponse);
+        setAppState({
+          openDialog: { name: "ttd", tab: "mermaid" },
+        });
+      }
+    };
+
     useEffect(() => {
       if (tab === "text-to-diagram" && ttdGeneration?.generatedResponse) {
         const timeoutId = setTimeout(() => {
@@ -515,18 +525,6 @@ export const TTDDialogBase = withInternalFallback(
                     onSendMessage={handleSendMessage}
                     isGenerating={onTextSubmitInProgess}
                     rateLimits={rateLimits}
-                    onViewAsMermaid={() => {
-                      if (
-                        typeof ttdGeneration?.generatedResponse === "string"
-                      ) {
-                        saveMermaidDataToStorage(
-                          ttdGeneration.generatedResponse,
-                        );
-                        setAppState({
-                          openDialog: { name: "ttd", tab: "mermaid" },
-                        });
-                      }
-                    }}
                     generatedResponse={ttdGeneration?.generatedResponse}
                     onUndo={handleUndo}
                     onRedo={handleRedo}
@@ -546,6 +544,25 @@ export const TTDDialogBase = withInternalFallback(
                         ),
                       )
                     }
+                    bottomRightContent={
+                      <>
+                        {ttdGeneration?.generatedResponse && (
+                          <button
+                            className="chat-interface__mermaid-link"
+                            onClick={onViewAsMermaid}
+                            type="button"
+                          >
+                            View as Mermaid
+                            <InlineIcon icon={ArrowRightIcon} />
+                          </button>
+                        )}
+                      </>
+                    }
+                    placeholder={{
+                      title: "Let’s design your diagram",
+                      description:
+                        "Describe the diagram you want to create, and I'll generate it for you.",
+                    }}
                   />
                 </TTDDialogPanel>
                 {showPreview && (

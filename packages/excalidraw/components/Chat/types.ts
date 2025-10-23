@@ -1,6 +1,6 @@
 export interface ChatMessage {
   id: string;
-  type: 'user' | 'assistant' | 'system';
+  type: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
   isGenerating?: boolean;
@@ -35,4 +35,9 @@ export interface ChatInterfaceProps {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  bottomRightContent?: React.ReactNode;
+  placeholder: {
+    title: string;
+    description: string;
+  };
 }

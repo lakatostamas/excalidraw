@@ -14,12 +14,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   onSendMessage,
   isGenerating,
   rateLimits,
-  onViewAsMermaid,
-  generatedResponse,
   onUndo,
   onRedo,
   canUndo = false,
   canRedo = false,
+  bottomRightContent,
+  placeholder,
 }) => {
   const [inputValue, setInputValue] = useState(currentPrompt);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -106,11 +106,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {messages.length === 0 ? (
           <div className="chat-interface__empty-state">
             <div className="chat-interface__empty-state-content">
-              <h3>Let’s design your diagram</h3>
-              <p>
-                Describe what diagram you'd like to create, and I'll help you
-                generate it.
-              </p>
+              <h3>{placeholder.title}</h3>
+              <p>{placeholder.description}</p>
             </div>
           </div>
         ) : (
@@ -188,16 +185,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
 
             <div className="chat-interface__footer-right">
-              {generatedResponse && onViewAsMermaid && (
-                <button
-                  className="chat-interface__mermaid-link"
-                  onClick={onViewAsMermaid}
-                  type="button"
-                >
-                  View as Mermaid
-                  <InlineIcon icon={ArrowRightIcon} />
-                </button>
-              )}
+              {bottomRightContent}
             </div>
           </div>
         )}
