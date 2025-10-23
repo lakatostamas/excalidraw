@@ -250,7 +250,9 @@ export const TTDDialogBase = withInternalFallback(
 
     const [onTextSubmitInProgess, setOnTextSubmitInProgess] = useState(false);
     const [rateLimits, setRateLimits] = useAtom(rateLimitsAtom);
-    const [showPreview, setShowPreview] = useState(false);
+    const [showPreview, setShowPreview] = useState(
+      !!ttdGeneration?.generatedResponse,
+    );
 
     const onGenerate = async (promptWithContext: string) => {
       if (
