@@ -51,7 +51,27 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const handleSubmit = () => {
     const trimmedPrompt = inputValue.trim();
     if (trimmedPrompt && !isGenerating) {
-      onSendMessage(trimmedPrompt);
+      const contextMessages = [...messages].reverse();
+      let contextText = "";
+
+      for (const message of contextMessages) {
+        const messageText = `${
+          message.type === "user" ? "User" : "Assistant"
+        }: ${message.content}`;
+        const newContextLength = contextText.length + messageText.length + 2; // +2 for newline
+
+        if (newContextLength > 1000) {
+          break;
+        }
+
+        contextText = messageText + (contextText ? "\n" : "") + contextText;
+      }
+
+      const fullPrompt = contextText
+        ? `${contextText}\n\nUser: ${trimmedPrompt}`
+        : trimmedPrompt;
+
+      onSendMessage(fullPrompt);
       setInputValue("");
     }
   };
