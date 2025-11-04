@@ -1,4 +1,5 @@
 .excalidraw {
+
   .speech-recognition {
     display: inline-flex;
     flex-direction: column;
@@ -9,23 +10,22 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 2.5rem;
-      height: 2.5rem;
-      border: 1px solid var(--color-border);
-      border-radius: var(--border-radius-md);
-      background: var(--color-surface-low);
+      width: 32px;
+      height: 32px;
+      border: none;
+      border-radius: 50%;
+      background: var(--color-surface-high);
       color: var(--color-on-surface);
       cursor: pointer;
       transition: all 0.2s ease;
-      padding: 0;
 
       &:hover:not(:disabled) {
-        background: var(--color-surface-high);
-        border-color: var(--color-border-hover);
+        background: var(--color-surface-highest);
+        transform: translateY(-1px);
       }
 
       &:active:not(:disabled) {
-        transform: scale(0.95);
+        transform: translateY(0);
       }
 
       &:disabled {
@@ -34,14 +34,10 @@
       }
 
       &--listening {
-        background: var(--color-primary);
-        color: var(--color-on-primary);
-        border-color: var(--color-primary);
         animation: pulse 1.5s ease-in-out infinite;
 
-        &:hover {
-          background: var(--color-primary-darker);
-          border-color: var(--color-primary-darker);
+        &:hover:not(:disabled) {
+          background: var(--color-error-darker);
         }
       }
     }

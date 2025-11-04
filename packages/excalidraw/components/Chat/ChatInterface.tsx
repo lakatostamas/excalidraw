@@ -29,10 +29,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => {
-    setInputValue(currentPrompt);
-  }, [currentPrompt]);
-
   const handleSpeechTranscript = (transcript: string) => {
     setInputValue(transcript);
     onPromptChange(transcript);

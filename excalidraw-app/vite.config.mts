@@ -18,10 +18,10 @@ export default defineConfig(({ mode }) => {
       // open the browser
       open: true,
       proxy: {
-        '/api/ai': {
-          target: 'https://oss-ai.excalidraw.com',
+        "/api/ai": {
+          target: envVars.VITE_APP_AI_BACKEND_PROXY_DESTINATION,
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api\/ai/, '/v1/ai'),
+          rewrite: (path) => path.replace(/^\/api\/ai/, "/v1/ai"),
         },
       },
     },
