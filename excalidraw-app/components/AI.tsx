@@ -99,7 +99,7 @@ export const AIComponents = ({
       />
 
       <TTDDialog
-        onTextSubmit={async (input) => {
+        onTextSubmit={async (payload) => {
           try {
             const response = await fetch(`/api/ai/text-to-diagram/generate`, {
               method: "POST",
@@ -107,7 +107,7 @@ export const AIComponents = ({
                 Accept: "application/json",
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify({ prompt: input }),
+              body: JSON.stringify(payload),
             });
 
             const rateLimit = response.headers.has("X-Ratelimit-Limit")

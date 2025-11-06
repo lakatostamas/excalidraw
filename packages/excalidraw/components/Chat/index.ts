@@ -6,3 +6,4 @@ export type {
   ChatHistory,
   ChatHistorySnapshot
 } from "./types";
+export { useChatAgent } from "./useChatAgent";

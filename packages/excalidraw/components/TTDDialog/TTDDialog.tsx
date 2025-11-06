@@ -21,7 +21,7 @@ import { TTDDialogTabTrigger } from "./TTDDialogTabTrigger";
 import { TTDDialogTab } from "./TTDDialogTab";
 import { TTDDialogOutput } from "./TTDDialogOutput";
 import { TTDDialogPanel } from "./TTDDialogPanel";
-import { ChatInterface } from "../Chat";
+import { ChatInterface, useChatAgent } from "../Chat";
 import { InlineIcon } from "../InlineIcon";
 
 import {
@@ -73,10 +73,17 @@ type OnTestSubmitRetValue = {
     }
 );
 
+type TTDPayload = {
+  messages: Array<{
+    role: "user" | "assistant" | "system";
+    content: string;
+  }>;
+};
+
 export const TTDDialog = (
   props:
     | {
-        onTextSubmit(value: string): Promise<OnTestSubmitRetValue>;
+        onTextSubmit(payload: TTDPayload): Promise<OnTestSubmitRetValue>;
       }
     | { __fallback: true },
 ) => {
@@ -101,7 +108,7 @@ export const TTDDialogBase = withInternalFallback(
     tab: "text-to-diagram" | "mermaid";
   } & (
     | {
-        onTextSubmit(value: string): Promise<OnTestSubmitRetValue>;
+        onTextSubmit(value: TTDPayload): Promise<OnTestSubmitRetValue>;
       }
     | { __fallback: true }
   )) => {
@@ -127,17 +134,7 @@ export const TTDDialogBase = withInternalFallback(
       }));
     };
 
-    const saveSnapshot = () => {
-      const snapshot: ChatHistorySnapshot = {
-        messages: [...chatHistory.messages],
-        currentPrompt: chatHistory.currentPrompt,
-        generatedResponse: ttdGeneration?.generatedResponse || null,
-        timestamp: new Date(),
-      };
-
-      setUndoStack((prev) => [...prev, snapshot]);
-      setRedoStack([]);
-    };
+    // snapshot handling moved to useChatAgent hook
 
     const addMessage = (message: Omit<ChatMessageType, "id" | "timestamp">) => {
       const newMessage: ChatMessageType = {
@@ -255,6 +252,9 @@ export const TTDDialogBase = withInternalFallback(
       !!ttdGeneration?.generatedResponse,
     );
 
+    const { addUserAndPendingAssistant, setAssistantError, setAssistantContent, saveSnapshot } =
+      useChatAgent();
+
     const onGenerate = async (promptWithContext: string) => {
       if (
         promptWithContext.length > MAX_PROMPT_LENGTH ||
@@ -282,16 +282,7 @@ export const TTDDialogBase = withInternalFallback(
         return;
       }
 
-      addMessage({
-        type: "user",
-        content: prompt,
-      });
-
-      addMessage({
-        type: "assistant",
-        content: "",
-        isGenerating: true,
-      });
+      addUserAndPendingAssistant(promptWithContext, addMessage);
 
       setTimeout(() => {
         setShowPreview(true);
@@ -302,8 +293,11 @@ export const TTDDialogBase = withInternalFallback(
 
         trackEvent("ai", "generate", "ttd");
 
+        // TODO build messages here
         const { generatedResponse, error, rateLimit, rateLimitRemaining } =
-          await rest.onTextSubmit(promptWithContext);
+          await rest.onTextSubmit({
+            messages: [{ role: "user", content: promptWithContext }],
+          });
 
         if (typeof generatedResponse === "string") {
           setTtdGeneration((s) => ({
@@ -317,26 +311,15 @@ export const TTDDialogBase = withInternalFallback(
         }
 
         if (error) {
-          updateLastMessage({
-            isGenerating: false,
-            error: error.message,
-          });
-          setError(error);
+          setAssistantError(updateLastMessage, setError, error.message);
           return;
         }
         if (!generatedResponse) {
-          updateLastMessage({
-            isGenerating: false,
-            error: "Generation failed",
-          });
-          setError(new Error("Generation failed"));
+          setAssistantError(updateLastMessage, setError, "Generation failed");
           return;
         }
 
-        updateLastMessage({
-          isGenerating: false,
-          content: generatedResponse,
-        });
+        setAssistantContent(updateLastMessage, generatedResponse);
 
         try {
           await convertMermaidToExcalidraw({
@@ -348,7 +331,12 @@ export const TTDDialogBase = withInternalFallback(
           });
           trackEvent("ai", "mermaid parse success", "ttd");
 
-          saveSnapshot();
+          saveSnapshot(
+            chatHistory,
+            ttdGeneration,
+            setUndoStack,
+            setRedoStack,
+          );
         } catch (error: any) {
           console.info(
             `%cTTD mermaid render errror: ${error.message}`,
