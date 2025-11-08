@@ -26,13 +26,11 @@ export const useChatAgent = () => {
     content: string,
     addMessage: AddMessageFn,
   ) => {
-    // add user message
     addMessage({
       type: "user",
       content,
     });
 
-    // add assistant placeholder while generating
     addMessage({
       type: "assistant",
       content: "",
@@ -73,7 +71,6 @@ export const useChatAgent = () => {
     };
 
     setUndoStack((prev) => [...prev, snapshot]);
-    // Clear redo stack for new action
     setRedoStack(() => []);
   };
 

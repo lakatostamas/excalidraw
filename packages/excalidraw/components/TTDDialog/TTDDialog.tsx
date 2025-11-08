@@ -197,10 +197,15 @@ export const TTDDialogBase = withInternalFallback(
 
         trackEvent("ai", "generate", "ttd");
 
-        // TODO build messages here
         const { generatedResponse, error, rateLimit, rateLimitRemaining } =
           await rest.onTextSubmit({
-            messages: [{ role: "user", content: promptWithContext }],
+            messages: [
+              ...chatHistory.messages.map((msg) => ({
+                role: msg.type,
+                content: msg.content,
+              })),
+              { role: "user", content: promptWithContext },
+            ],
           });
 
         if (typeof generatedResponse === "string") {
@@ -338,10 +343,6 @@ export const TTDDialogBase = withInternalFallback(
       }
     };
 
-    const handleSendMessage = (message: string) => {
-      onGenerate(message);
-    };
-
     const refOnGenerate = useRef(onGenerate);
     refOnGenerate.current = onGenerate;
 
@@ -475,7 +476,7 @@ export const TTDDialogBase = withInternalFallback(
                     messages={chatHistory.messages}
                     currentPrompt={chatHistory.currentPrompt}
                     onPromptChange={handlePromptChange}
-                    onSendMessage={handleSendMessage}
+                    onSendMessage={onGenerate}
                     isGenerating={onTextSubmitInProgess}
                     rateLimits={rateLimits}
                     generatedResponse={ttdGeneration?.generatedResponse}
