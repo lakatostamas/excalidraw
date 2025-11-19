@@ -10,31 +10,30 @@ import { atom, useAtom } from "../../editor-jotai";
 import { t } from "../../i18n";
 import { useApp, useExcalidrawSetAppState } from "../App";
 import { Dialog } from "../Dialog";
-import { InlineIcon } from "../InlineIcon";
 import { withInternalFallback } from "../hoc/withInternalFallback";
-import { ArrowRightIcon } from "../icons";
+import { ArrowRightIcon, HelpIconThin } from "../icons";
+import { Tooltip } from "../Tooltip";
 
 import MermaidToExcalidraw from "./MermaidToExcalidraw";
 import TTDDialogTabs from "./TTDDialogTabs";
 import { TTDDialogTabTriggers } from "./TTDDialogTabTriggers";
 import { TTDDialogTabTrigger } from "./TTDDialogTabTrigger";
 import { TTDDialogTab } from "./TTDDialogTab";
-import { TTDDialogInput } from "./TTDDialogInput";
 import { TTDDialogOutput } from "./TTDDialogOutput";
 import { TTDDialogPanel } from "./TTDDialogPanel";
-import { TTDDialogPanels } from "./TTDDialogPanels";
+import { ChatInterface, useChatAgent } from "../Chat";
+import { InlineIcon } from "../InlineIcon";
 
 import {
   convertMermaidToExcalidraw,
   insertToEditor,
   saveMermaidDataToStorage,
 } from "./common";
-import { TTDDialogSubmitShortcut } from "./TTDDialogSubmitShortcut";
 
 import "./TTDDialog.scss";
 
-import type { ChangeEventHandler } from "react";
 import type { MermaidToExcalidrawLibProps } from "./common";
+import type { ChatMessageType } from "../Chat";
 
 import type { BinaryFiles } from "../../types";
 
@@ -62,10 +61,17 @@ type OnTestSubmitRetValue = {
     }
 );
 
+type TTDPayload = {
+  messages: Array<{
+    role: "user" | "assistant" | "system";
+    content: string;
+  }>;
+};
+
 export const TTDDialog = (
   props:
     | {
-        onTextSubmit(value: string): Promise<OnTestSubmitRetValue>;
+        onTextSubmit(payload: TTDPayload): Promise<OnTestSubmitRetValue>;
       }
     | { __fallback: true },
 ) => {
@@ -90,7 +96,7 @@ export const TTDDialogBase = withInternalFallback(
     tab: "text-to-diagram" | "mermaid";
   } & (
     | {
-        onTextSubmit(value: string): Promise<OnTestSubmitRetValue>;
+        onTextSubmit(value: TTDPayload): Promise<OnTestSubmitRetValue>;
       }
     | { __fallback: true }
   )) => {
@@ -100,41 +106,76 @@ export const TTDDialogBase = withInternalFallback(
     const someRandomDivRef = useRef<HTMLDivElement>(null);
 
     const [ttdGeneration, setTtdGeneration] = useAtom(ttdGenerationAtom);
-
     const [text, setText] = useState(ttdGeneration?.prompt ?? "");
+
+    const {
+      addUserAndPendingAssistant,
+      setAssistantError,
+      setAssistantContent,
+      saveSnapshot,
+      chatHistory,
+      handleUndo,
+      handleRedo,
+      canUndo,
+      canRedo,
+      setChatHistory,
+    } = useChatAgent();
 
     const prompt = text.trim();
 
-    const handleTextChange: ChangeEventHandler<HTMLTextAreaElement> = (
-      event,
-    ) => {
-      setText(event.target.value);
-      setTtdGeneration((s) => ({
-        generatedResponse: s?.generatedResponse ?? null,
-        prompt: event.target.value,
+    const handlePromptChange = (newPrompt: string) => {
+      setText(newPrompt);
+      setChatHistory((prev) => ({
+        ...prev,
+        currentPrompt: newPrompt,
+      }));
+    };
+
+    const addMessage = (message: Omit<ChatMessageType, "id" | "timestamp">) => {
+      const newMessage: ChatMessageType = {
+        ...message,
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date(),
+      };
+
+      setChatHistory((prev) => ({
+        ...prev,
+        messages: [...prev.messages, newMessage],
+      }));
+    };
+
+    const updateLastMessage = (updates: Partial<ChatMessageType>) => {
+      setChatHistory((prev) => ({
+        ...prev,
+        messages: prev.messages.map((msg, index) =>
+          index === prev.messages.length - 1 ? { ...msg, ...updates } : msg,
+        ),
       }));
     };
 
     const [onTextSubmitInProgess, setOnTextSubmitInProgess] = useState(false);
     const [rateLimits, setRateLimits] = useAtom(rateLimitsAtom);
+    const [showPreview, setShowPreview] = useState(
+      !!ttdGeneration?.generatedResponse,
+    );
 
-    const onGenerate = async () => {
+    const onGenerate = async (promptWithContext: string) => {
       if (
-        prompt.length > MAX_PROMPT_LENGTH ||
-        prompt.length < MIN_PROMPT_LENGTH ||
+        promptWithContext.length > MAX_PROMPT_LENGTH ||
+        promptWithContext.length < MIN_PROMPT_LENGTH ||
         onTextSubmitInProgess ||
         rateLimits?.rateLimitRemaining === 0 ||
         // means this is not a text-to-diagram dialog (needed for TS only)
         "__fallback" in rest
       ) {
-        if (prompt.length < MIN_PROMPT_LENGTH) {
+        if (promptWithContext.length < MIN_PROMPT_LENGTH) {
           setError(
             new Error(
               `Prompt is too short (min ${MIN_PROMPT_LENGTH} characters)`,
             ),
           );
         }
-        if (prompt.length > MAX_PROMPT_LENGTH) {
+        if (promptWithContext.length > MAX_PROMPT_LENGTH) {
           setError(
             new Error(
               `Prompt is too long (max ${MAX_PROMPT_LENGTH} characters)`,
@@ -145,13 +186,27 @@ export const TTDDialogBase = withInternalFallback(
         return;
       }
 
+      addUserAndPendingAssistant(promptWithContext, addMessage);
+
+      setTimeout(() => {
+        setShowPreview(true);
+      }, 200);
+
       try {
         setOnTextSubmitInProgess(true);
 
         trackEvent("ai", "generate", "ttd");
 
         const { generatedResponse, error, rateLimit, rateLimitRemaining } =
-          await rest.onTextSubmit(prompt);
+          await rest.onTextSubmit({
+            messages: [
+              ...chatHistory.messages.map((msg) => ({
+                role: msg.type,
+                content: msg.content,
+              })),
+              { role: "user", content: promptWithContext },
+            ],
+          });
 
         if (typeof generatedResponse === "string") {
           setTtdGeneration((s) => ({
@@ -165,13 +220,15 @@ export const TTDDialogBase = withInternalFallback(
         }
 
         if (error) {
-          setError(error);
+          setAssistantError(updateLastMessage, setError, error.message);
           return;
         }
         if (!generatedResponse) {
-          setError(new Error("Generation failed"));
+          setAssistantError(updateLastMessage, setError, "Generation failed");
           return;
         }
+
+        setAssistantContent(updateLastMessage, generatedResponse);
 
         try {
           await convertMermaidToExcalidraw({
@@ -182,6 +239,8 @@ export const TTDDialogBase = withInternalFallback(
             mermaidDefinition: generatedResponse,
           });
           trackEvent("ai", "mermaid parse success", "ttd");
+
+          saveSnapshot(ttdGeneration);
         } catch (error: any) {
           console.info(
             `%cTTD mermaid render errror: ${error.message}`,
@@ -192,6 +251,11 @@ export const TTDDialogBase = withInternalFallback(
             "color: yellow",
           );
           trackEvent("ai", "mermaid parse failed", "ttd");
+          updateLastMessage({
+            isGenerating: false,
+            error:
+              "Generated an invalid diagram :(. You may also try a different prompt.",
+          });
           setError(
             new Error(
               "Generated an invalid diagram :(. You may also try a different prompt.",
@@ -203,9 +267,79 @@ export const TTDDialogBase = withInternalFallback(
         if (!message || message === "Failed to fetch") {
           message = "Request failed";
         }
+        updateLastMessage({
+          isGenerating: false,
+          error: message,
+        });
         setError(new Error(message));
       } finally {
         setOnTextSubmitInProgess(false);
+      }
+    };
+
+    const doUndo = async () => {
+      const snapshotToRestore = handleUndo(ttdGeneration);
+
+      if (!snapshotToRestore) {
+        return;
+      }
+
+      setText(snapshotToRestore.currentPrompt);
+
+      if (snapshotToRestore.generatedResponse) {
+        setTtdGeneration({
+          generatedResponse: snapshotToRestore.generatedResponse,
+          prompt: snapshotToRestore.currentPrompt,
+        });
+
+        try {
+          await convertMermaidToExcalidraw({
+            canvasRef: someRandomDivRef,
+            data,
+            mermaidToExcalidrawLib,
+            setError,
+            mermaidDefinition: snapshotToRestore.generatedResponse,
+          });
+        } catch (error: any) {
+          console.error("Error regenerating diagram:", error);
+          setError(error);
+        }
+      } else {
+        setTtdGeneration(null);
+        setError(null);
+      }
+    };
+
+    const doRedo = async () => {
+      const snapshotToRestore = handleRedo(ttdGeneration);
+
+      if (!snapshotToRestore) {
+        return;
+      }
+
+      setText(snapshotToRestore.currentPrompt);
+
+      if (snapshotToRestore.generatedResponse) {
+        setTtdGeneration({
+          generatedResponse: snapshotToRestore.generatedResponse,
+          prompt: snapshotToRestore.currentPrompt,
+        });
+
+        try {
+          await convertMermaidToExcalidraw({
+            canvasRef: someRandomDivRef,
+            data,
+            mermaidToExcalidrawLib,
+            setError,
+            mermaidDefinition: snapshotToRestore.generatedResponse,
+          });
+        } catch (error: any) {
+          console.error("Error regenerating diagram:", error);
+          setError(error);
+        }
+      } else {
+        setTtdGeneration(null);
+        setError(null);
       }
     };
 
@@ -232,6 +366,35 @@ export const TTDDialogBase = withInternalFallback(
     }>({ elements: [], files: null });
 
     const [error, setError] = useState<Error | null>(null);
+
+    const onViewAsMermaid = () => {
+      if (typeof ttdGeneration?.generatedResponse === "string") {
+        saveMermaidDataToStorage(ttdGeneration.generatedResponse);
+        setAppState({
+          openDialog: { name: "ttd", tab: "mermaid" },
+        });
+      }
+    };
+
+    useEffect(() => {
+      if (tab === "text-to-diagram" && ttdGeneration?.generatedResponse) {
+        const timeoutId = setTimeout(() => {
+          if (someRandomDivRef.current && ttdGeneration.generatedResponse) {
+            convertMermaidToExcalidraw({
+              canvasRef: someRandomDivRef,
+              data,
+              mermaidToExcalidrawLib,
+              setError,
+              mermaidDefinition: ttdGeneration.generatedResponse,
+            }).catch((err) => {
+              console.error("Failed to restore diagram", err);
+            });
+          }
+        }, 100);
+
+        return () => clearTimeout(timeoutId);
+      }
+    }, [tab, ttdGeneration?.generatedResponse, mermaidToExcalidrawLib]);
 
     return (
       <Dialog
@@ -280,118 +443,89 @@ export const TTDDialogBase = withInternalFallback(
           </TTDDialogTab>
           {!("__fallback" in rest) && (
             <TTDDialogTab className="ttd-dialog-content" tab="text-to-diagram">
-              <div className="ttd-dialog-desc">
-                Currently we use Mermaid as a middle step, so you'll get best
-                results if you describe a diagram, workflow, flow chart, and
-                similar.
-              </div>
-              <TTDDialogPanels>
+              <div
+                className={`ttd-dialog-layout ${
+                  showPreview
+                    ? "ttd-dialog-layout--split"
+                    : "ttd-dialog-layout--chat-only"
+                }`}
+              >
                 <TTDDialogPanel
-                  label={t("labels.prompt")}
-                  panelAction={{
-                    action: onGenerate,
-                    label: "Generate",
-                    icon: ArrowRightIcon,
-                  }}
-                  onTextSubmitInProgess={onTextSubmitInProgess}
-                  panelActionDisabled={
-                    prompt.length > MAX_PROMPT_LENGTH ||
-                    rateLimits?.rateLimitRemaining === 0
-                  }
-                  renderTopRight={() => {
-                    if (!rateLimits) {
-                      return null;
-                    }
-
-                    return (
-                      <div
-                        className="ttd-dialog-rate-limit"
-                        style={{
-                          fontSize: 12,
-                          marginLeft: "auto",
-                          color:
-                            rateLimits.rateLimitRemaining === 0
-                              ? "var(--color-danger)"
-                              : undefined,
-                        }}
+                  label={
+                    <div style={{ display: "flex", gap: 5 }}>
+                      <label>Chat</label>
+                      <Tooltip
+                        label={
+                          "Currently we use Mermaid as a middle step, so you'll get best results if you describe a diagram, workflow, flow chart, and similar."
+                        }
+                        long
                       >
-                        {rateLimits.rateLimitRemaining} requests left today
-                      </div>
-                    );
-                  }}
-                  renderSubmitShortcut={() => <TTDDialogSubmitShortcut />}
-                  renderBottomRight={() => {
-                    if (typeof ttdGeneration?.generatedResponse === "string") {
-                      return (
-                        <div
-                          className="excalidraw-link"
-                          style={{ marginLeft: "auto", fontSize: 14 }}
-                          onClick={() => {
-                            if (
-                              typeof ttdGeneration?.generatedResponse ===
-                              "string"
-                            ) {
-                              saveMermaidDataToStorage(
-                                ttdGeneration.generatedResponse,
-                              );
-                              setAppState({
-                                openDialog: { name: "ttd", tab: "mermaid" },
-                              });
-                            }
-                          }}
+                        <button
+                          type="button"
+                          aria-label="Text-to-diagram help"
+                          className="ttd-dialog-info"
                         >
-                          View as Mermaid
-                          <InlineIcon icon={ArrowRightIcon} />
-                        </div>
-                      );
-                    }
-                    const ratio = prompt.length / MAX_PROMPT_LENGTH;
-                    if (ratio > 0.8) {
-                      return (
-                        <div
-                          style={{
-                            marginLeft: "auto",
-                            fontSize: 12,
-                            fontFamily: "monospace",
-                            color:
-                              ratio > 1 ? "var(--color-danger)" : undefined,
-                          }}
-                        >
-                          Length: {prompt.length}/{MAX_PROMPT_LENGTH}
-                        </div>
-                      );
-                    }
-
-                    return null;
-                  }}
+                          {HelpIconThin}
+                        </button>
+                      </Tooltip>
+                    </div>
+                  }
+                  className="ttd-dialog-chat-panel"
                 >
-                  <TTDDialogInput
-                    onChange={handleTextChange}
-                    input={text}
-                    placeholder={"Describe what you want to see..."}
-                    onKeyboardSubmit={() => {
-                      refOnGenerate.current();
+                  <ChatInterface
+                    messages={chatHistory.messages}
+                    currentPrompt={chatHistory.currentPrompt}
+                    onPromptChange={handlePromptChange}
+                    onSendMessage={onGenerate}
+                    isGenerating={onTextSubmitInProgess}
+                    rateLimits={rateLimits}
+                    generatedResponse={ttdGeneration?.generatedResponse}
+                    onUndo={doUndo}
+                    onRedo={doRedo}
+                    canUndo={canUndo}
+                    canRedo={canRedo}
+                    bottomRightContent={
+                      <>
+                        {ttdGeneration?.generatedResponse && (
+                          <button
+                            className="chat-interface__mermaid-link"
+                            onClick={onViewAsMermaid}
+                            type="button"
+                          >
+                            View as Mermaid
+                            <InlineIcon icon={ArrowRightIcon} />
+                          </button>
+                        )}
+                      </>
+                    }
+                    placeholder={{
+                      title: "Let’s design your diagram",
+                      description:
+                        "Describe the diagram you want to create, and I'll generate it for you.",
                     }}
                   />
                 </TTDDialogPanel>
-                <TTDDialogPanel
-                  label="Preview"
-                  panelAction={{
-                    action: () => {
-                      console.info("Panel action clicked");
-                      insertToEditor({ app, data });
-                    },
-                    label: "Insert",
-                    icon: ArrowRightIcon,
-                  }}
-                >
-                  <TTDDialogOutput
-                    canvasRef={someRandomDivRef}
-                    error={error}
-                    loaded={mermaidToExcalidrawLib.loaded}
-                  />
-                </TTDDialogPanel>
-              </TTDDialogPanels>
+                {showPreview && (
+                  <TTDDialogPanel
+                    label="Preview"
+                    panelAction={{
+                      action: () => {
+                        console.info("Panel action clicked");
+                        insertToEditor({ app, data });
+                      },
+                      label: "Insert",
+                      icon: ArrowRightIcon,
+                    }}
+                    className="ttd-dialog-preview-panel"
+                  >
+                    <TTDDialogOutput
+                      canvasRef={someRandomDivRef}
+                      error={error}
+                      loaded={mermaidToExcalidrawLib.loaded}
+                    />
+                  </TTDDialogPanel>
+                )}
+              </div>
             </TTDDialogTab>
           )}
         </TTDDialogTabs>

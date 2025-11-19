@@ -99,21 +99,16 @@ export const AIComponents = ({
       />
 
       <TTDDialog
-        onTextSubmit={async (input) => {
+        onTextSubmit={async (payload) => {
           try {
-            const response = await fetch(
-              `${
-                import.meta.env.VITE_APP_AI_BACKEND
-              }/v1/ai/text-to-diagram/generate`,
-              {
-                method: "POST",
-                headers: {
-                  Accept: "application/json",
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ prompt: input }),
+            const response = await fetch(`/api/ai/text-to-diagram/generate`, {
+              method: "POST",
+              headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json",
               },
-            );
+              body: JSON.stringify(payload),
+            });
 
             const rateLimit = response.headers.has("X-Ratelimit-Limit")
               ? parseInt(response.headers.get("X-Ratelimit-Limit") || "0", 10)
